@@ -1,6 +1,3 @@
-# ©️ LISA-KOREA | @LISA_FAN_LK | NT_BOT_CHANNEL | TG-SORRY
-
-
 import logging
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -28,22 +25,20 @@ from pyrogram.errors import UserNotParticipant
 from plugins.functions.ran_text import random_char
 from plugins.database.database import db
 from plugins.database.add import AddUser
-from pyrogram.types import Thumbnail
+from plugins.dl_button import download_coroutine
 cookies_file = 'cookies.txt'
-
-
 
 @Client.on_message(filters.private & filters.regex(pattern=".*http.*"))
 async def echo(bot, update):
     if update.from_user.id != Config.OWNER_ID:  
         if not await check_verification(bot, update.from_user.id) and Config.TRUE_OR_FALSE:
             button = [[
-                InlineKeyboardButton("✓⃝ Vᴇʀɪꜰʏ ✓⃝", url=await get_token(bot, update.from_user.id, f"https://telegram.me/{Config.BOT_USERNAME}?start="))
+                InlineKeyboardButton("✓⃝ Verify ✓⃝", url=await get_token(bot, update.from_user.id, f"https://telegram.me/{Config.BOT_USERNAME}?start="))
                 ],[
-                InlineKeyboardButton("🔆 Wᴀᴛᴄʜ Hᴏᴡ Tᴏ Vᴇʀɪꜰʏ 🔆", url=f"{Config.VERIFICATION}")
+                InlineKeyboardButton("🔆 Watch How To Verify 🔆", url=f"{Config.VERIFICATION}")
             ]]
             await update.reply_text(
-                text="<b>Pʟᴇᴀsᴇ Vᴇʀɪꜰʏ Fɪʀsᴛ Tᴏ Usᴇ Mᴇ</b>",
+                text="<b>Please Verify First To Use Me</b>",
                 protect_content=True,
                 reply_markup=InlineKeyboardMarkup(button)
             )
@@ -70,7 +65,6 @@ async def echo(bot, update):
         fsub = await handle_force_subscribe(bot, update)
         if fsub == 400:
             return
-
 
     logger.info(update.from_user)
     url = update.text
@@ -101,7 +95,6 @@ async def echo(bot, update):
             url = url.strip()
         if file_name is not None:
             file_name = file_name.strip()
-        # https://stackoverflow.com/a/761825/4723940
         if youtube_dl_username is not None:
             youtube_dl_username = youtube_dl_username.strip()
         if youtube_dl_password is not None:
@@ -116,6 +109,16 @@ async def echo(bot, update):
                 o = entity.offset
                 l = entity.length
                 url = url[o:o + l]
+    
+    chk = await bot.send_message(
+        chat_id=update.chat.id,
+        text='Processing your link ⌛',
+        disable_web_page_preview=True,
+        reply_to_message_id=update.id,
+        parse_mode=enums.ParseMode.HTML
+    )
+
+    # Try yt-dlp first
     if Config.HTTP_PROXY != "":
         command_to_exec = [
             "yt-dlp",
@@ -138,7 +141,6 @@ async def echo(bot, update):
             url,
             "--geo-bypass-country",
             "IN"
-
         ]
     if youtube_dl_username is not None:
         command_to_exec.append("--username")
@@ -147,30 +149,19 @@ async def echo(bot, update):
         command_to_exec.append("--password")
         command_to_exec.append(youtube_dl_password)
     logger.info(command_to_exec)
-    chk = await bot.send_message(
-            chat_id=update.chat.id,
-            text=f'ᴘʀᴏᴄᴇssɪɴɢ ʏᴏᴜʀ ʟɪɴᴋ ⌛',
-            disable_web_page_preview=True,
-            reply_to_message_id=update.id,
-            parse_mode=enums.ParseMode.HTML
-          )
     process = await asyncio.create_subprocess_exec(
         *command_to_exec,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    # Wait for the subprocess to finish
     stdout, stderr = await process.communicate()
     e_response = stderr.decode().strip()
-    logger.info(e_response)
     t_response = stdout.decode().strip()
-    if e_response and "nonnumeric port" not in e_response:
-        # logger.warn("Status : FAIL", exc.returncode, exc.output)
+    if e_response and "nonnumeric port" not in e_response and "Unsupported URL" not in e_response:
         error_message = e_response.replace("please report this issue on https://yt-dl.org/bug . Make sure you are using the latest version; see  https://yt-dl.org/update  on how to update. Be sure to call youtube-dl with the --verbose flag and include its complete output.", "")
         if "This video is only available for registered users." in error_message:
             error_message += Translation.SET_CUSTOM_USERNAME_PASSWORD
         await chk.delete()
-        
         time.sleep(10)
         await bot.send_message(
             chat_id=update.chat.id,
@@ -179,6 +170,7 @@ async def echo(bot, update):
             disable_web_page_preview=True
         )
         return False
+    
     if t_response:
         x_reponse = t_response
         if "\n" in x_reponse:
@@ -189,7 +181,6 @@ async def echo(bot, update):
             "/" + str(update.from_user.id) + f'{randem}' + ".json"
         with open(save_ytdl_json_path, "w", encoding="utf8") as outfile:
             json.dump(response_json, outfile, ensure_ascii=False)
-        # logger.info(response_json)
         inline_keyboard = []
         duration = None
         if "duration" in response_json:
@@ -202,7 +193,6 @@ async def echo(bot, update):
                     format_string = formats.get("format")
                 if "DASH" in format_string.upper():
                     continue
-          
                 format_ext = formats.get("ext")
                 if formats.get('filesize'):
                     size = formats['filesize']
@@ -221,18 +211,7 @@ async def echo(bot, update):
                             callback_data=(cb_string_video).encode("UTF-8")
                         )
                     ]
-                    """if duration is not None:
-                        cb_string_video_message = "{}|{}|{}|{}|{}".format(
-                            "vm", format_id, format_ext, ran, randem)
-                        ikeyboard.append(
-                            InlineKeyboardButton(
-                                "VM",
-                                callback_data=(
-                                    cb_string_video_message).encode("UTF-8")
-                            )
-                        )"""
                 else:
-                    # special weird case :\
                     ikeyboard = [
                         InlineKeyboardButton(
                             "📁 [" +
@@ -248,17 +227,17 @@ async def echo(bot, update):
                 cb_string_320 = "{}|{}|{}|{}".format("audio", "320k", "mp3", randem)
                 inline_keyboard.append([
                     InlineKeyboardButton(
-                        "🎵 ᴍᴘ𝟹 " + "(" + "64 ᴋʙᴘs" + ")", callback_data=cb_string_64.encode("UTF-8")),
+                        "🎵 mp3 " + "(" + "64 kbps" + ")", callback_data=cb_string_64.encode("UTF-8")),
                     InlineKeyboardButton(
-                        "🎵 ᴍᴘ𝟹 " + "(" + "128 ᴋʙᴘs" + ")", callback_data=cb_string_128.encode("UTF-8"))
+                        "🎵 mp3 " + "(" + "128 kbps" + ")", callback_data=cb_string_128.encode("UTF-8"))
                 ])
                 inline_keyboard.append([
                     InlineKeyboardButton(
-                        "🎵 ᴍᴘ𝟹 " + "(" + "320 ᴋʙᴘs" + ")", callback_data=cb_string_320.encode("UTF-8"))
+                        "🎵 mp3 " + "(" + "320 kbps" + ")", callback_data=cb_string_320.encode("UTF-8"))
                 ])
                 inline_keyboard.append([                 
                     InlineKeyboardButton(
-                        "🔒 ᴄʟᴏsᴇ", callback_data='close')               
+                        "🔒 Close", callback_data='close')               
                 ])
         else:
             format_id = response_json["format_id"]
@@ -283,24 +262,57 @@ async def echo(bot, update):
             reply_to_message_id=update.id
         )
     else:
-        #fallback for nonnumeric port a.k.a seedbox.io
-        inline_keyboard = []
-        cb_string_file = "{}={}={}".format(
-            "file", "LFO", "NONE")
-        cb_string_video = "{}={}={}".format(
-            "video", "OFL", "ENON")
-        inline_keyboard.append([
-            InlineKeyboardButton(
-                "📁 ᴍᴇᴅɪᴀ",
-                callback_data=(cb_string_video).encode("UTF-8")
-            )
-        ])
-        reply_markup = InlineKeyboardMarkup(inline_keyboard)
-        await chk.delete(True)
-        await bot.send_message(
-            chat_id=update.chat.id,
-            text=Translation.FORMAT_SELECTION,
-            reply_markup=reply_markup,
-            disable_web_page_preview=True,
-            reply_to_message_id=update.id
-        )
+        # Fallback to direct download for unsupported URLs
+        randem = random_char(5)
+        tmp_directory_for_each_user = Config.DOWNLOAD_LOCATION + "/" + str(update.from_user.id) + randem
+        if not os.path.isdir(tmp_directory_for_each_user):
+            os.makedirs(tmp_directory_for_each_user)
+        if file_name:
+            download_directory = tmp_directory_for_each_user + "/" + file_name
+        else:
+            download_directory = tmp_directory_for_each_user + "/" + os.path.basename(url)
+        await chk.delete()
+        async with aiohttp.ClientSession() as session:
+            c_time = time.time()
+            try:
+                await download_coroutine(
+                    bot,
+                    session,
+                    url,
+                    download_directory,
+                    update.chat.id,
+                    update.id,
+                    c_time
+                )
+                await bot.send_message(
+                    chat_id=update.chat.id,
+                    text=Translation.FORMAT_SELECTION,
+                    reply_markup=InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton(
+                                "📁 Media",
+                                callback_data=f"file=LFO=NONE={randem}".encode("UTF-8")
+                            )
+                        ],
+                        [
+                            InlineKeyboardButton(
+                                "🔒 Close",
+                                callback_data="close"
+                            )
+                        ]
+                    ]),
+                    disable_web_page_preview=True,
+                    reply_to_message_id=update.id
+                )
+            except Exception as e:
+                logger.error(str(e))
+                await bot.send_message(
+                    chat_id=update.chat.id,
+                    text=Translation.NO_VOID_FORMAT_FOUND.format(str(e)),
+                    reply_to_message_id=update.id,
+                    disable_web_page_preview=True
+                )
+                try:
+                    shutil.rmtree(tmp_directory_for_each_user)
+                except:
+                    pass
